@@ -1,8 +1,7 @@
 <?php
-$test = 2342423234;
-echo $test;
+    $test = 2342423234;
+    echo $test;
 ?>
-
 
 <!DOCTYPE html>
     <html>
