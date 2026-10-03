@@ -1,37 +1,56 @@
 services:
   php:
     build:
-      context: ./dockerfiles
-      dockerfile: php.dockerfile
+      context: ./docker/php
     volumes:
       - ./src:/var/www/html
       - ./docker/php/conf.d/xdebug.ini:/usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
       - ./docker/php/conf.d/error_reporting.ini:/usr/local/etc/php/conf.d/error_reporting.ini
+    environment:
+      DB_HOST: mysql
+      DB_NAME: ${MYSQL_DATABASE:-dummy}
+      DB_USER: ${MYSQL_USER:-dummy}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-dummy}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      mysql:
+        condition: service_healthy
     networks:
-      dummy-network:
-        ipv4_address: 172.83.10.11
+      - dummy-network
 
   nginx:
-    image: nginx:latest
+    image: nginx:1.27-alpine
+    ports:
+      - "127.0.0.1:${NGINX_PORT:-8080}:80"
     volumes:
-      - ./src:/var/www/html
-      - ./docker/nginx/conf.d:/etc/nginx/conf.d
+      - ./src:/var/www/html:ro
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+    depends_on:
+      - php
     networks:
-      dummy-network:
-        ipv4_address: 172.83.10.12
+      - dummy-network
 
   mysql:
-    image: mysql:latest
+    image: mysql:26.7
     environment:
-      - MYSQL_ROOT_PASSWORD=root
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-dummy}
+      MYSQL_USER: ${MYSQL_USER:-dummy}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-dummy}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
     networks:
-      dummy-network:
-        ipv4_address: 172.83.10.13
+      - dummy-network
+
+volumes:
+  mysql-data:
 
 networks:
   dummy-network:
     driver: bridge
-    ipam:
-      driver: default
-      config:
-        - subnet: 172.83.10.0/24
